@@ -9,7 +9,12 @@
   "routes": [
     {
       "src": "/(.*)",
-      "dest": "/api/index.py"
+      "dest": "api/index.py"
     }
   ]
 }
+```
+
+And create a `requirements.txt` file (can be empty):
+```
+# Python dependencies
