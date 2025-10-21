@@ -1,137 +1,70 @@
-from http.server import BaseHTTPRequestHandler
 import urllib.request
 import urllib.error
-import re
 
-TARGET_SOURCE_DOMAIN = 'www.faselhds.life'
-ROBOTS_TAG = "<meta name='robots' content='index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1' />"
-GOOGLE_VERIFY = "<meta name='google-site-verification' content='4aeE1nom200vJpqjv46jujHDGVAuIdF2tA8rycTjFnE' />"
+TARGET_SOURCE_DOMAIN = 'v.3esk.co'
+BASE_PATH = '/watch'
 
-HEADER_BOX = '''
-<div class="container-fluid py-3 text-center" dir="rtl" style="background:#0052cc;">
-  <div class="d-flex flex-wrap justify-content-center gap-3">
-    <a href="https://z.3isk.news/" title="مسلسلات تركية" class="px-3 py-2 rounded fw-bold text-white" style="background:#007bff;text-decoration:none;">مسلسلات تركية</a>
-    <a href="https://z.3isk.news/series/3isk-se-esref-ruya-watch/" title="حلم اشرف" class="px-3 py-2 rounded fw-bold text-white" style="background:#28a745;text-decoration:none;">حلم اشرف</a>
-    <a href="https://z.3isk.news/video/episode-3isk-uzak-sehir-season-1-episode-33-watch/" title="المدينة البعيدة الحلقة 33" class="px-3 py-2 rounded fw-bold text-white" style="background:#ff5722;text-decoration:none;">المدينة البعيدة الحلقة 33</a>
-  </div>
-</div>
-
-'''
-
-class handler(BaseHTTPRequestHandler):
-    def do_GET(self):
+def handler(request):
+    """Vercel serverless function handler"""
+    try:
+        path = request.path or '/'
+        
+        # Remove /api prefix if present
+        if path.startswith('/api'):
+            path = path[4:] or '/'
+        
+        # Ensure path starts with BASE_PATH
+        if not path.startswith(BASE_PATH):
+            path = BASE_PATH + path
+        
+        target_url = f"https://{TARGET_SOURCE_DOMAIN}{path}"
+        
+        # Build request with proper headers to avoid blocking
+        req = urllib.request.Request(
+            target_url,
+            headers={
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
+                "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
+                "Accept-Language": "en-US,en;q=0.9",
+                "Accept-Encoding": "gzip, deflate",
+                "DNT": "1",
+                "Connection": "keep-alive",
+                "Upgrade-Insecure-Requests": "1",
+                "Referer": "https://v.3esk.co/"
+            }
+        )
+        
         try:
-            path = self.path
-            if path.startswith('/api'):
-                path = path[4:] or '/'
-            
-            target_url = f"https://{TARGET_SOURCE_DOMAIN}{path}"
-            
-            # Get worker domain
-            host = self.headers.get('host', 'localhost')
-            proto = self.headers.get('x-forwarded-proto', 'https')
-            worker_origin = f"{proto}://{host}"
-            
-            # Make request with forced Referer
-            req = urllib.request.Request(
-                target_url,
-                headers={
-                    "User-Agent": "Mozilla/5.0",
-                    "Accept": "*/*",
-                    "Referer": "https://www.faselhds.life/"
-                }
-            )
-            
-            try:
-                response = urllib.request.urlopen(req, timeout=10)
-            except urllib.error.HTTPError as e:
-                self.send_response(e.code)
-                self.send_header('Content-Type', 'text/plain')
-                self.end_headers()
-                self.wfile.write(f"Error {e.code}".encode())
-                return
-            
-            content_type = response.headers.get("Content-Type", "").lower()
+            response = urllib.request.urlopen(req, timeout=25)
             body = response.read()
+            content_type = response.headers.get("Content-Type", "application/octet-stream")
             
-            # ✅ Handle HTML
-            if "text/html" in content_type:
-                html = body.decode("utf-8", errors="ignore")
-                
-                # Rewrite ANY faselhds.* domain → worker domain
-                html = re.sub(
-                    r'https://(?:www\.)?faselhds\.[a-z]+',
-                    worker_origin,
-                    html,
-                    flags=re.IGNORECASE
-                )
-                
-                # Remove existing robots & google verify
-                html = re.sub(
-                    r'<meta[^>]*name=["\']robots["\'][^>]*>',
-                    '',
-                    html,
-                    flags=re.IGNORECASE
-                )
-                html = re.sub(
-                    r'<meta[^>]*name=["\']google-site-verification["\'][^>]*>',
-                    '',
-                    html,
-                    flags=re.IGNORECASE
-                )
-                
-                # Inject robots + google verify inside <head>
-                html = re.sub(
-                    r'(<head[^>]*>)',
-                    rf'\1\n{ROBOTS_TAG}\n{GOOGLE_VERIFY}\n',
-                    html,
-                    count=1,
-                    flags=re.IGNORECASE
-                )
-                
-                # Add banner box after <body>
-                html = re.sub(
-                    r'(<body[^>]*>)',
-                    rf'\1\n{HEADER_BOX}',
-                    html,
-                    count=1,
-                    flags=re.IGNORECASE
-                )
-                
-                self.send_response(200)
-                self.send_header('Content-Type', 'text/html; charset=UTF-8')
-                self.end_headers()
-                self.wfile.write(html.encode('utf-8'))
-                return
+            return {
+                'statusCode': 200,
+                'headers': {
+                    'Content-Type': content_type,
+                    'Access-Control-Allow-Origin': '*'
+                },
+                'body': body.decode('utf-8', errors='ignore') if isinstance(body, bytes) else body,
+                'isBase64Encoded': False
+            }
             
-            # ✅ Handle XML / RSS / Sitemap
-            if any(x in content_type for x in ['xml', 'rss', 'text/plain']) or path.endswith('.xml'):
-                text = body.decode("utf-8", errors="ignore")
-                
-                # Replace all faselhds.* links → worker domain
-                text = re.sub(
-                    r'https://(?:www\.)?faselhds\.[a-z]+',
-                    worker_origin,
-                    text,
-                    flags=re.IGNORECASE
-                )
-                
-                self.send_response(200)
-                self.send_header('Content-Type', 'application/xml; charset=UTF-8')
-                self.end_headers()
-                self.wfile.write(text.encode('utf-8'))
-                return
+        except urllib.error.HTTPError as e:
+            return {
+                'statusCode': e.code,
+                'headers': {'Content-Type': 'text/plain'},
+                'body': f"Error {e.code}: {e.reason}"
+            }
+        except urllib.error.URLError as e:
+            return {
+                'statusCode': 502,
+                'headers': {'Content-Type': 'text/plain'},
+                'body': f"Connection error: {str(e)}"
+            }
             
-            # ✅ Binary files (CSS, JS, video, images)
-            self.send_response(200)
-            self.send_header('Content-Type', content_type)
-            self.end_headers()
-            self.wfile.write(body)
-            
-        except Exception as e:
-            self.send_response(500)
-            self.send_header('Content-Type', 'text/plain')
-            self.end_headers()
-            error_msg = f"Error: {str(e)}"
-            self.wfile.write(error_msg.encode())
-
+    except Exception as e:
+        return {
+            'statusCode': 500,
+            'headers': {'Content-Type': 'text/plain'},
+            'body': f"Server error: {str(e)}"
+        }
