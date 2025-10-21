@@ -3,8 +3,7 @@ import urllib.request
 import urllib.error
 import ssl
 
-TARGET_SOURCE_DOMAIN = 'v.3esk.co'
-BASE_PATH = '/watch'
+TARGET_SOURCE_DOMAIN = 'z.3isk.news'
 
 class handler(BaseHTTPRequestHandler):
     def do_GET(self):
@@ -15,10 +14,6 @@ class handler(BaseHTTPRequestHandler):
             if path.startswith('/api'):
                 path = path[4:] or '/'
             
-            # Ensure path starts with BASE_PATH
-            if not path.startswith(BASE_PATH):
-                path = BASE_PATH + path
-            
             target_url = f"https://{TARGET_SOURCE_DOMAIN}{path}"
             
             print(f"[DEBUG] Proxying request to: {target_url}")
@@ -27,10 +22,15 @@ class handler(BaseHTTPRequestHandler):
             req = urllib.request.Request(
                 target_url,
                 headers={
-                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-                    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+                    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
                     "Accept-Language": "en-US,en;q=0.9",
+                    "Accept-Encoding": "gzip, deflate, br",
                     "Connection": "keep-alive",
+                    "Referer": "https://z.3isk.news/",
+                    "Sec-Fetch-Dest": "document",
+                    "Sec-Fetch-Mode": "navigate",
+                    "Sec-Fetch-Site": "none",
                 }
             )
             
